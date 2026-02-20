@@ -66,6 +66,16 @@ class UserManager {
     return this.activeProfile;
   }
 
+  unlockAllLevelsForActive() {
+    const p = this.activeProfile;
+    if (!p) return false;
+
+    const totalLevels = DICTIONARIES[p.locale] ? DICTIONARIES[p.locale].levels.length : 20;
+    p.progress.currentLevel = totalLevels;
+    this._save();
+    return true;
+  }
+
   /**
    * Save level completion results.
    * Unlocks next level if this was the highest unlocked.

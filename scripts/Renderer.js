@@ -430,96 +430,136 @@ class Renderer {
 
   // ── Menu Screen ──────────────────────────────────────────
 
-  drawMenuScreen(profiles, selectedIndex, mode) {
-    this.drawRainBackground(0.016);
-    const ctx = this.ctx;
-
-    // Darken overlay so UI text doesn't ghost-trail
-    ctx.fillStyle = "rgba(10, 10, 15, 0.75)";
-    ctx.fillRect(0, 60, this.W, this.H - 100);
-
-    // Title
-    ctx.shadowColor = this.NEON.cyan;
-    ctx.shadowBlur = 20;
-    ctx.font = `bold 48px ${this.FONT_FAMILY}`;
-    ctx.fillStyle = this.NEON.cyan;
-    ctx.textAlign = "center";
-    ctx.fillText(this._strings.title, this.W / 2, 100);
-
-    ctx.shadowColor = this.NEON.pink;
-    ctx.font = `bold 24px ${this.FONT_FAMILY}`;
-    ctx.fillStyle = this.NEON.pink;
-    ctx.fillText(this._strings.subtitle, this.W / 2, 135);
-    ctx.shadowBlur = 0;
-
-    if (mode === "select") {
-      this._drawProfileSelect(profiles, selectedIndex);
-    } else if (mode === "create") {
-      // Handled by DOM overlay
-    }
-
-    ctx.textAlign = "left";
-  }
-
-    _drawProfileSelect(profiles, selectedIndex) {
+    drawMenuScreen(profiles, selectedIndex, mode, hoveredIndex = -1, deleteConfirmIndex = -1) {
+      this.drawRainBackground(0.016);
       const ctx = this.ctx;
-      const startY = 200;
 
-      ctx.font = `18px ${this.FONT_FAMILY}`;
-      ctx.fillStyle = this.NEON.white;
+      // Darken overlay so UI text doesn't ghost-trail
+      ctx.fillStyle = "rgba(10, 10, 15, 0.75)";
+      ctx.fillRect(0, 60, this.W, this.H - 100);
+
+      // Title
+      ctx.shadowColor = this.NEON.cyan;
+      ctx.shadowBlur = 20;
+      ctx.font = `bold 48px ${this.FONT_FAMILY}`;
+      ctx.fillStyle = this.NEON.cyan;
       ctx.textAlign = "center";
-      ctx.fillText(this._strings.selectAlias, this.W / 2, startY);
+      ctx.fillText(this._strings.title, this.W / 2, 100);
 
-      // Profile list
-      for (let i = 0; i < profiles.length; i++) {
-        const p = profiles[i];
-        const y = startY + 50 + i * 45;
-        const isSelected = i === selectedIndex;
+      ctx.shadowColor = this.NEON.pink;
+      ctx.font = `bold 24px ${this.FONT_FAMILY}`;
+      ctx.fillStyle = this.NEON.pink;
+      ctx.fillText(this._strings.subtitle, this.W / 2, 135);
+      ctx.shadowBlur = 0;
 
-        const boxX = this.W / 2 - 200;
-        const boxY = y - 25;
-        const boxW = 400;
-        const boxH = 40;
-
-      if (isSelected) {
-            ctx.fillStyle = "rgba(0, 229, 255, 0.1)";
-            ctx.fillRect(boxX, boxY, boxW, boxH);
-            this.drawNeonHighlight(boxX, boxY, boxW, boxH, this.NEON.cyan);
-            ctx.fillStyle = this.NEON.cyan;
-            ctx.font = `bold 20px ${this.FONT_FAMILY}`;
-          } else {
-          ctx.fillStyle = "rgba(255,255,255,0.5)";
-          ctx.font = `18px ${this.FONT_FAMILY}`;
-        }
-
-        const locale = p.locale === "es-ES" ? "ES" : "EN";
-        ctx.fillText(`${p.alias}  [${locale}]  Lv.${p.progress.currentLevel}`, this.W / 2, y);
-
-        // Register clickable hit region
-        this.addHitRegion(boxX, boxY, boxW, boxH, "menu_select", { index: i });
+      if (mode === "select") {
+        this._drawProfileSelect(profiles, selectedIndex, hoveredIndex, deleteConfirmIndex);
+      } else if (mode === "create") {
+        // Handled by DOM overlay
       }
-
-      // New profile option
-      const newY = startY + 50 + profiles.length * 45;
-      const isNewSelected = selectedIndex === profiles.length;
-      ctx.font = isNewSelected ? `bold 20px ${this.FONT_FAMILY}` : `18px ${this.FONT_FAMILY}`;
-      ctx.fillStyle = isNewSelected ? this.NEON.lime : "rgba(255,255,255,0.5)";
-      ctx.fillText(this._strings.createNew, this.W / 2, newY);
-
-        const newBoxX = this.W / 2 - 200;
-        const newBoxY = newY - 25;
-        if (isNewSelected) {
-          this.drawNeonHighlight(newBoxX, newBoxY, 400, 40, this.NEON.lime);
-        }
-        this.addHitRegion(newBoxX, newBoxY, 400, 40, "menu_select", { index: profiles.length });
-
-      // Instructions
-      ctx.font = `14px ${this.FONT_FAMILY}`;
-      ctx.fillStyle = "rgba(255,255,255,0.3)";
-      ctx.fillText(this._strings.navSelect, this.W / 2, this.H - 40);
 
       ctx.textAlign = "left";
     }
+
+      _drawProfileSelect(profiles, selectedIndex, hoveredIndex, deleteConfirmIndex) {
+        const ctx = this.ctx;
+        const startY = 200;
+        const MAX_PROFILES = 5;
+
+        ctx.font = `18px ${this.FONT_FAMILY}`;
+        ctx.fillStyle = this.NEON.white;
+        ctx.textAlign = "center";
+        ctx.fillText(this._strings.selectAlias, this.W / 2, startY);
+
+        // Profile list
+        for (let i = 0; i < profiles.length; i++) {
+          const p = profiles[i];
+          const y = startY + 50 + i * 45;
+          const isSelected = i === selectedIndex;
+          const isHovered = i === hoveredIndex;
+          const isDeleteConfirm = i === deleteConfirmIndex;
+
+          const boxX = this.W / 2 - 200;
+          const boxY = y - 25;
+          const boxW = 370;
+          const boxH = 40;
+
+          if (isSelected || isHovered) {
+              ctx.fillStyle = isSelected ? "rgba(0, 229, 255, 0.1)" : "rgba(255,255,255,0.05)";
+              ctx.fillRect(boxX, boxY, boxW, boxH);
+              this.drawNeonHighlight(boxX, boxY, boxW, boxH, isSelected ? this.NEON.cyan : "rgba(255,255,255,0.3)");
+              ctx.fillStyle = isSelected ? this.NEON.cyan : this.NEON.white;
+              ctx.font = `bold 20px ${this.FONT_FAMILY}`;
+          } else {
+            ctx.fillStyle = "rgba(255,255,255,0.5)";
+            ctx.font = `18px ${this.FONT_FAMILY}`;
+          }
+
+          const locale = p.locale === "es-ES" ? "ES" : "EN";
+          ctx.fillText(`${p.alias}  [${locale}]  Lv.${p.progress.currentLevel}`, this.W / 2 - 15, y);
+
+          // Register clickable hit region for profile row
+          this.addHitRegion(boxX, boxY, boxW, boxH, "menu_select", { index: i });
+
+          // Bin / delete icon
+          const binX = this.W / 2 + 185;
+          const binY = boxY;
+          const binW = 32;
+          const binH = 40;
+
+          if (isDeleteConfirm) {
+            // Show confirmation "?" icon with pink glow
+            ctx.save();
+            ctx.shadowColor = this.NEON.pink;
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = this.NEON.pink;
+            ctx.font = `bold 18px ${this.FONT_FAMILY}`;
+            ctx.fillText("✓?", binX + binW / 2, binY + binH / 2 + 5);
+            ctx.restore();
+          } else {
+            const binHover = i === hoveredIndex;
+            ctx.save();
+            ctx.shadowColor = binHover ? this.NEON.pink : "transparent";
+            ctx.shadowBlur = binHover ? 8 : 0;
+            ctx.fillStyle = binHover ? this.NEON.pink : "rgba(255,255,255,0.2)";
+            ctx.font = `16px ${this.FONT_FAMILY}`;
+            ctx.fillText("🗑", binX + binW / 2, binY + binH / 2 + 5);
+            ctx.restore();
+          }
+          this.addHitRegion(binX, binY, binW, binH, "menu_delete", { index: i });
+        }
+
+        // New profile option — only shown when under the limit
+        if (profiles.length < MAX_PROFILES) {
+          const newY = startY + 50 + profiles.length * 45;
+          const isNewSelected = selectedIndex === profiles.length;
+          const isNewHovered = hoveredIndex === profiles.length;
+          const newBoxX = this.W / 2 - 200;
+          const newBoxY = newY - 25;
+
+          ctx.font = (isNewSelected || isNewHovered) ? `bold 20px ${this.FONT_FAMILY}` : `18px ${this.FONT_FAMILY}`;
+          ctx.fillStyle = (isNewSelected || isNewHovered) ? this.NEON.lime : "rgba(255,255,255,0.5)";
+          ctx.fillText(this._strings.createNew, this.W / 2, newY);
+
+          if (isNewSelected || isNewHovered) {
+            this.drawNeonHighlight(newBoxX, newBoxY, 400, 40, this.NEON.lime);
+          }
+          this.addHitRegion(newBoxX, newBoxY, 400, 40, "menu_select", { index: profiles.length });
+        } else {
+          // Show a "max profiles" notice
+          const noticeY = startY + 50 + profiles.length * 45;
+          ctx.font = `14px ${this.FONT_FAMILY}`;
+          ctx.fillStyle = "rgba(255,100,100,0.5)";
+          ctx.fillText(this._strings.maxProfiles || "Maximum 5 profiles reached. Delete one to create a new profile.", this.W / 2, noticeY);
+        }
+
+        // Instructions
+        ctx.font = `14px ${this.FONT_FAMILY}`;
+        ctx.fillStyle = "rgba(255,255,255,0.3)";
+        ctx.fillText(this._strings.navSelect, this.W / 2, this.H - 40);
+
+        ctx.textAlign = "left";
+      }
 
   // ── Level Select Screen ──────────────────────────────────
 
@@ -702,47 +742,46 @@ class Renderer {
 
   // ── Pause Screen ─────────────────────────────────────────
 
-  drawPauseScreen(selectedIndex) {
-    const ctx = this.ctx;
-    ctx.fillStyle = "rgba(10, 10, 15, 0.8)";
-    ctx.fillRect(0, 0, this.W, this.H);
+    drawPauseScreen(selectedIndex, hoveredIndex = -1) {
+      const ctx = this.ctx;
+      ctx.fillStyle = "rgba(10, 10, 15, 0.8)";
+      ctx.fillRect(0, 0, this.W, this.H);
 
-    ctx.textAlign = "center";
-    ctx.shadowColor = this.NEON.yellow;
-    ctx.shadowBlur = 20;
-    ctx.font = `bold 42px ${this.FONT_FAMILY}`;
-    ctx.fillStyle = this.NEON.yellow;
-    ctx.fillText(this._strings.paused, this.W / 2, this.H / 2 - 60);
-    ctx.shadowBlur = 0;
+      ctx.textAlign = "center";
+      ctx.shadowColor = this.NEON.yellow;
+      ctx.shadowBlur = 20;
+      ctx.font = `bold 42px ${this.FONT_FAMILY}`;
+      ctx.fillStyle = this.NEON.yellow;
+      ctx.fillText(this._strings.paused, this.W / 2, this.H / 2 - 60);
+      ctx.shadowBlur = 0;
 
-      const options = [this._strings.pauseContinue, this._strings.pauseQuit];
-        for (let i = 0; i < options.length; i++) {
-          const y = this.H / 2 + i * 50;
-          const selected = i === selectedIndex;
-          ctx.font = selected ? `bold 24px ${this.FONT_FAMILY}` : `22px ${this.FONT_FAMILY}`;
-          ctx.fillStyle = selected ? this.NEON.cyan : "rgba(255,255,255,0.4)";
-          if (selected) {
-            ctx.fillStyle = this.NEON.cyan;
-            ctx.shadowColor = this.NEON.cyan;
-            ctx.shadowBlur = 10;
-            this.drawNeonHighlight(this.W / 2 - 150, y - 25, 300, 40, this.NEON.cyan);
-          }
-          ctx.fillText(options[i], this.W / 2, y);
-          ctx.shadowBlur = 0;
+        const options = [this._strings.pauseContinue, this._strings.pauseQuit];
+          for (let i = 0; i < options.length; i++) {
+            const y = this.H / 2 + i * 50;
+            const active = i === selectedIndex || i === hoveredIndex;
+            ctx.font = active ? `bold 24px ${this.FONT_FAMILY}` : `22px ${this.FONT_FAMILY}`;
+            ctx.fillStyle = active ? this.NEON.cyan : "rgba(255,255,255,0.4)";
+            if (active) {
+              ctx.shadowColor = this.NEON.cyan;
+              ctx.shadowBlur = 10;
+              this.drawNeonHighlight(this.W / 2 - 150, y - 25, 300, 40, this.NEON.cyan);
+            }
+            ctx.fillText(options[i], this.W / 2, y);
+            ctx.shadowBlur = 0;
 
-        // Clickable region
-        this.addHitRegion(this.W / 2 - 150, y - 25, 300, 40, "pause_option", { index: i });
-      }
+          // Clickable region
+          this.addHitRegion(this.W / 2 - 150, y - 25, 300, 40, "pause_option", { index: i });
+        }
 
-    ctx.font = `14px ${this.FONT_FAMILY}`;
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.fillText(this._strings.pauseNav, this.W / 2, this.H / 2 + 130);
-    ctx.textAlign = "left";
-  }
+      ctx.font = `14px ${this.FONT_FAMILY}`;
+      ctx.fillStyle = "rgba(255,255,255,0.3)";
+      ctx.fillText(this._strings.pauseNav, this.W / 2, this.H / 2 + 130);
+      ctx.textAlign = "left";
+    }
 
   // ── Level Complete / Game Over ───────────────────────────
 
-    drawLevelComplete(stats, selectedIndex) {
+    drawLevelComplete(stats, selectedIndex, hoveredIndex = -1) {
       const ctx = this.ctx;
       ctx.fillStyle = "rgba(10, 10, 15, 0.85)";
       ctx.fillRect(0, 0, this.W, this.H);
@@ -772,22 +811,22 @@ class Renderer {
         ctx.font = `bold 20px ${this.FONT_FAMILY}`;
 
         // Continue button
-        const continueSelected = selectedIndex === 0;
-        ctx.fillStyle = continueSelected ? this.NEON.cyan : "rgba(255,255,255,0.4)";
+        const continueActive = selectedIndex === 0 || hoveredIndex === 0;
+        ctx.fillStyle = continueActive ? this.NEON.cyan : "rgba(255,255,255,0.4)";
         ctx.fillText(this._strings.continue, this.W / 2 - 100, btnY);
-        if (continueSelected) {
+        if (continueActive) {
           this.drawNeonHighlight(this.W / 2 - 200, btnY - 22, 200, 35, this.NEON.cyan);
         }
-        this.addHitRegion(this.W / 2 - 200, btnY - 22, 200, 35, "complete_continue", {});
+        this.addHitRegion(this.W / 2 - 200, btnY - 22, 200, 35, "complete_continue", { index: 0 });
 
         // Retry button
-        const retrySelected = selectedIndex === 1;
-        ctx.fillStyle = retrySelected ? this.NEON.orange : "rgba(255,255,255,0.4)";
+        const retryActive = selectedIndex === 1 || hoveredIndex === 1;
+        ctx.fillStyle = retryActive ? this.NEON.orange : "rgba(255,255,255,0.4)";
         ctx.fillText(this._strings.retry, this.W / 2 + 100, btnY);
-        if (retrySelected) {
+        if (retryActive) {
           this.drawNeonHighlight(this.W / 2, btnY - 22, 200, 35, this.NEON.orange);
         }
-        this.addHitRegion(this.W / 2, btnY - 22, 200, 35, "complete_retry", {});
+        this.addHitRegion(this.W / 2, btnY - 22, 200, 35, "complete_retry", { index: 1 });
 
       ctx.font = `14px ${this.FONT_FAMILY}`;
       ctx.fillStyle = "rgba(255,255,255,0.3)";
@@ -796,7 +835,7 @@ class Renderer {
       ctx.textAlign = "left";
     }
 
-    drawGameOver(selectedIndex) {
+    drawGameOver(selectedIndex, hoveredIndex = -1) {
       const ctx = this.ctx;
       ctx.fillStyle = "rgba(10, 10, 15, 0.9)";
       ctx.fillRect(0, 0, this.W, this.H);
@@ -818,22 +857,22 @@ class Renderer {
         ctx.font = `bold 20px ${this.FONT_FAMILY}`;
 
         // Retry button
-        const retrySelected = selectedIndex === 0;
-        ctx.fillStyle = retrySelected ? this.NEON.orange : "rgba(255,255,255,0.4)";
+        const retryActive = selectedIndex === 0 || hoveredIndex === 0;
+        ctx.fillStyle = retryActive ? this.NEON.orange : "rgba(255,255,255,0.4)";
         ctx.fillText(this._strings.retry, this.W / 2 - 80, btnY);
-        if (retrySelected) {
+        if (retryActive) {
           this.drawNeonHighlight(this.W / 2 - 180, btnY - 22, 200, 35, this.NEON.orange);
         }
-        this.addHitRegion(this.W / 2 - 180, btnY - 22, 200, 35, "gameover_retry", {});
+        this.addHitRegion(this.W / 2 - 180, btnY - 22, 200, 35, "gameover_retry", { index: 0 });
 
         // Menu button
-        const menuSelected = selectedIndex === 1;
-        ctx.fillStyle = menuSelected ? this.NEON.cyan : "rgba(255,255,255,0.4)";
+        const menuActive = selectedIndex === 1 || hoveredIndex === 1;
+        ctx.fillStyle = menuActive ? this.NEON.cyan : "rgba(255,255,255,0.4)";
         ctx.fillText(this._strings.menu, this.W / 2 + 80, btnY);
-        if (menuSelected) {
+        if (menuActive) {
           this.drawNeonHighlight(this.W / 2 - 20, btnY - 22, 200, 35, this.NEON.cyan);
         }
-        this.addHitRegion(this.W / 2 - 20, btnY - 22, 200, 35, "gameover_menu", {});
+        this.addHitRegion(this.W / 2 - 20, btnY - 22, 200, 35, "gameover_menu", { index: 1 });
 
       ctx.font = `14px ${this.FONT_FAMILY}`;
       ctx.fillStyle = "rgba(255,255,255,0.3)";

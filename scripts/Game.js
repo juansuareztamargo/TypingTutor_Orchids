@@ -14,11 +14,20 @@ class Game {
     this.input = new InputHandler();
     this.sfx = new SoundFX();
 
-    // State
-    this.state = "menu";       // menu | levelSelect | teacher | playing | paused | levelComplete | gameOver
-    this.pauseIndex = 0;        // 0 = Continue, 1 = Quit
-    this.menuIndex = 0;
+      // State
+      this.state = "menu";       // menu | levelSelect | teacher | playing | paused | levelComplete | gameOver
+      this.pauseIndex = 0;        // 0 = Continue, 1 = Quit
+      this.menuIndex = 0;
+      this.menuHoveredIndex = -1;
+      this.deleteConfirmIndex = -1; // index of profile awaiting delete confirmation
     this.endScreenIndex = 0;    // 0 = Continue/Retry, 1 = Retry/Menu
+    this.endScreenHover = -1;
+
+    // Transient toast (e.g., cheat feedback)
+    this.toastMessage = "";
+    this.toastTimer = 0;
+    this.toastDuration = 1.4;
+
 
     // Level select
     this.selectedLevel = 1;
@@ -42,14 +51,32 @@ class Game {
     // Create profile form (DOM)
     this._createProfileForm();
 
-    // Canvas click handler
-    this.canvas.addEventListener("click", (e) => this._onClick(e));
-    this.canvas.addEventListener("mousemove", (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const px = e.clientX - rect.left;
-      const py = e.clientY - rect.top;
-      this.canvas.style.cursor = this.renderer.hitTest(px, py) ? "pointer" : "default";
-    });
+      // Canvas click handler
+      this.canvas.addEventListener("click", (e) => this._onClick(e));
+      this.canvas.addEventListener("mousemove", (e) => {
+        const rect = this.canvas.getBoundingClientRect();
+        const px = e.clientX - rect.left;
+        const py = e.clientY - rect.top;
+        const hit = this.renderer.hitTest(px, py);
+        this.canvas.style.cursor = hit ? "pointer" : "default";
+
+        // Track hover for menu profiles
+        if (this.state === "menu") {
+          if (hit && (hit.action === "menu_select" || hit.action === "menu_delete")) {
+            this.menuHoveredIndex = hit.data.index;
+          } else {
+            this.menuHoveredIndex = -1;
+          }
+        }
+        // Track hover for end/pause screens
+        if (this.state === "paused" || this.state === "levelComplete" || this.state === "gameOver") {
+          if (hit) {
+            this.endScreenHover = hit.data.index ?? -1;
+          } else {
+            this.endScreenHover = -1;
+          }
+        }
+      });
 
     // Default locale for UI before any profile is selected
     this._uiLocale = getSystemLocale();
@@ -87,28 +114,29 @@ class Game {
           break;
         case "paused":
           this.renderer.drawRainBackground(dt);
-          this.renderer.drawPauseScreen(this.pauseIndex);
+          this.renderer.drawPauseScreen(this.pauseIndex, this.endScreenHover);
           break;
         case "levelComplete":
           this.renderer.drawRainBackground(dt);
-          this.renderer.drawLevelComplete(this._completionStats, this.endScreenIndex);
+          this.renderer.drawLevelComplete(this._completionStats, this.endScreenIndex, this.endScreenHover);
           break;
         case "gameOver":
           this.renderer.drawRainBackground(dt);
-          this.renderer.drawGameOver(this.endScreenIndex);
+          this.renderer.drawGameOver(this.endScreenIndex, this.endScreenHover);
           break;
     }
 
     this.renderer.updateShake(dt);
+    this._drawToast(dt);
     this._rafId = requestAnimationFrame(this._loop);
   }
 
   // ── MENU ─────────────────────────────────────────────────
 
-  _updateMenu(dt) {
-    const profiles = this.userManager.getProfiles();
-    this.renderer.drawMenuScreen(profiles, this.menuIndex, "select");
-  }
+    _updateMenu(dt) {
+      const profiles = this.userManager.getProfiles();
+      this.renderer.drawMenuScreen(profiles, this.menuIndex, "select", this.menuHoveredIndex, this.deleteConfirmIndex);
+    }
 
   // ── LEVEL SELECT ─────────────────────────────────────────
 
@@ -403,39 +431,66 @@ class Game {
     }
   }
 
-  _handleMenuKey(key) {
-    const profiles = this.userManager.getProfiles();
-    const maxIdx = profiles.length; // last index = "create new"
+    _handleMenuKey(key) {
+      const profiles = this.userManager.getProfiles();
+      const MAX_PROFILES = 5;
+      const maxIdx = profiles.length < MAX_PROFILES ? profiles.length : profiles.length - 1;
+
+      if (key === "Escape") {
+        this.deleteConfirmIndex = -1;
+        return;
+      }
 
       if (key === "ArrowUp") {
-      this.menuIndex = Math.max(0, this.menuIndex - 1);
-      this.sfx.playMenuNav();
-    } else if (key === "ArrowDown") {
-      this.menuIndex = Math.min(maxIdx, this.menuIndex + 1);
-      this.sfx.playMenuNav();
-    } else if (key === "Enter") {
-      this.sfx.playMenuSelect();
-      if (this.menuIndex < profiles.length) {
-        // Select existing profile
-        this.userManager.setActive(this.menuIndex);
-        this.renderer.setLocale(this.userManager.getActive().locale);
-        this.selectedLevel = this.userManager.getActive().progress.currentLevel;
-        this.state = "levelSelect";
-      } else {
-        // Show create form
-        this._showCreateForm();
-      }
-    } else if (key === "Delete" || key === "Backspace") {
-      if (this.menuIndex < profiles.length) {
-        this.userManager.deleteProfile(this.menuIndex);
-        this.menuIndex = Math.min(this.menuIndex, Math.max(0, profiles.length - 2));
+        this.deleteConfirmIndex = -1;
+        this.menuIndex = Math.max(0, this.menuIndex - 1);
+        this.sfx.playMenuNav();
+      } else if (key === "ArrowDown") {
+        this.deleteConfirmIndex = -1;
+        this.menuIndex = Math.min(maxIdx, this.menuIndex + 1);
+        this.sfx.playMenuNav();
+      } else if (key === "Enter") {
+        this.deleteConfirmIndex = -1;
+        this.sfx.playMenuSelect();
+        if (this.menuIndex < profiles.length) {
+          // Select existing profile
+          this.userManager.setActive(this.menuIndex);
+          this.renderer.setLocale(this.userManager.getActive().locale);
+          this.selectedLevel = this.userManager.getActive().progress.currentLevel;
+          this.state = "levelSelect";
+        } else {
+          // Show create form (only reachable when under limit)
+          this._showCreateForm();
+        }
+      } else if (key === "Delete" || key === "Backspace") {
+        if (this.menuIndex < profiles.length) {
+          if (this.deleteConfirmIndex === this.menuIndex) {
+            // Confirmed
+            this.userManager.deleteProfile(this.menuIndex);
+            this.menuIndex = Math.min(this.menuIndex, Math.max(0, this.userManager.getProfiles().length - 1));
+            this.deleteConfirmIndex = -1;
+          } else {
+            this.deleteConfirmIndex = this.menuIndex;
+          }
+        }
       }
     }
-  }
 
   _handleLevelSelectKey(key) {
     const profile = this.userManager.getActive();
-    const maxLevel = profile.progress.currentLevel;
+    let maxLevel = profile.progress.currentLevel;
+
+    if (key === "CheatGodMode") {
+      const changed = this.userManager.unlockAllLevelsForActive();
+      if (changed) {
+        maxLevel = this.userManager.getActive().progress.currentLevel;
+        this.selectedLevel = Math.min(this.selectedLevel, maxLevel);
+        this.sfx.playMenuSelect();
+      }
+      const strings = getUIStrings(this.renderer._locale || this._uiLocale);
+      this._showToast(strings.godModeEnabled || "GOD MODE ENABLED");
+      return;
+    }
 
     if (key === "ArrowRight") {
       this.selectedLevel = Math.min(maxLevel, this.selectedLevel + 1);
@@ -464,6 +519,61 @@ class Game {
     this.state = "teacher";
   }
 
+  _showToast(message, duration = this.toastDuration) {
+    if (!message) return;
+    this.toastMessage = message;
+    this.toastTimer = duration;
+  }
+
+  _drawToast(dt) {
+    if (this.toastTimer <= 0 || !this.toastMessage) return;
+
+    this.toastTimer = Math.max(0, this.toastTimer - dt);
+    const fadeWindow = 0.3;
+    const alpha = this.toastTimer < fadeWindow ? (this.toastTimer / fadeWindow) : 1;
+
+    const ctx = this.renderer.ctx;
+    const x = this.renderer.W / 2;
+
+    // On level select, place toast right below the level grid.
+    let y = 92;
+    if (this.state === "levelSelect") {
+      const profile = this.userManager.getActive();
+      const locale = profile?.locale || this.renderer._locale || this._uiLocale;
+      const levelCount = (DICTIONARIES[locale]?.levels || []).length;
+      const rows = Math.max(1, Math.ceil(levelCount / 5));
+      const gridBottom = 100 + rows * 70;
+      y = Math.min(this.renderer.H - 66, gridBottom + 34);
+    }
+
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.font = `bold 20px ${this.renderer.FONT_FAMILY}`;
+
+    const paddingX = 16;
+    const paddingY = 10;
+    const metrics = ctx.measureText(this.toastMessage);
+    const w = metrics.width + paddingX * 2;
+    const h = 36;
+
+    ctx.globalAlpha = 0.22 * alpha;
+    ctx.fillStyle = this.renderer.NEON.cyan;
+    this.renderer._roundRect(x - w / 2, y - h + 6, w, h, 6);
+    ctx.fill();
+
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = this.renderer.NEON.cyan;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = this.renderer.NEON.cyan;
+    ctx.fillText(this.toastMessage, x, y - paddingY);
+
+    ctx.restore();
+
+    if (this.toastTimer <= 0) {
+      this.toastMessage = "";
+    }
+  }
+
     // ── PROFILE CREATION FORM (DOM overlay) ──────────────────
 
     _onClick(e) {
@@ -474,19 +584,35 @@ class Game {
       if (!hit) return;
 
       switch (hit.action) {
-        case "menu_select": {
-          const profiles = this.userManager.getProfiles();
-          const idx = hit.data.index;
-          if (idx < profiles.length) {
-            this.userManager.setActive(idx);
-            this.renderer.setLocale(this.userManager.getActive().locale);
-            this.selectedLevel = this.userManager.getActive().progress.currentLevel;
-            this.state = "levelSelect";
-          } else {
-            this._showCreateForm();
+          case "menu_select": {
+            // Cancel any pending delete
+            this.deleteConfirmIndex = -1;
+            const profiles = this.userManager.getProfiles();
+            const idx = hit.data.index;
+            if (idx < profiles.length) {
+              this.menuIndex = idx;
+              this.userManager.setActive(idx);
+              this.renderer.setLocale(this.userManager.getActive().locale);
+              this.selectedLevel = this.userManager.getActive().progress.currentLevel;
+              this.state = "levelSelect";
+            } else {
+              this._showCreateForm();
+            }
+            break;
           }
-          break;
-        }
+          case "menu_delete": {
+            const idx = hit.data.index;
+            if (this.deleteConfirmIndex === idx) {
+              // Second click = confirmed delete
+              this.userManager.deleteProfile(idx);
+              this.menuIndex = Math.min(this.menuIndex, Math.max(0, this.userManager.getProfiles().length - 1));
+              this.deleteConfirmIndex = -1;
+            } else {
+              // First click = ask for confirmation
+              this.deleteConfirmIndex = idx;
+            }
+            break;
+          }
         case "level_select": {
           this.selectedLevel = hit.data.level;
           this._enterTeacher();
@@ -523,26 +649,31 @@ class Game {
     }
 
     _createProfileForm() {
-    this.formOverlay = document.getElementById("profileForm");
-    this.formAlias = document.getElementById("aliasInput");
-    this.formLocale = document.getElementById("localeSelect");
-    this.formSubmit = document.getElementById("formSubmit");
-    this.formCancel = document.getElementById("formCancel");
+      this.formOverlay = document.getElementById("profileForm");
+      this.formAlias = document.getElementById("aliasInput");
+      this.formLocale = document.getElementById("localeSelect");
+      this.formSubmit = document.getElementById("formSubmit");
+      this.formCancel = document.getElementById("formCancel");
+      this.formError = document.getElementById("formError");
 
-    if (this.formSubmit) {
-      this.formSubmit.addEventListener("click", () => this._submitProfile());
+      if (this.formSubmit) {
+        this.formSubmit.addEventListener("click", () => this._submitProfile());
+      }
+      if (this.formCancel) {
+        this.formCancel.addEventListener("click", () => this._hideCreateForm());
+      }
+      // Enter key in alias field
+      if (this.formAlias) {
+        this.formAlias.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") this._submitProfile();
+          if (e.key === "Escape") this._hideCreateForm();
+        });
+        // Clear error on input
+        this.formAlias.addEventListener("input", () => {
+          if (this.formError) this.formError.textContent = "";
+        });
+      }
     }
-    if (this.formCancel) {
-      this.formCancel.addEventListener("click", () => this._hideCreateForm());
-    }
-    // Enter key in alias field
-    if (this.formAlias) {
-      this.formAlias.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") this._submitProfile();
-        if (e.key === "Escape") this._hideCreateForm();
-      });
-    }
-  }
 
   _showCreateForm() {
     if (this.formOverlay) {
@@ -565,10 +696,11 @@ class Game {
         if (opts[i].value === "es-ES") opts[i].textContent = strings.optionES;
       }
 
-      this.formOverlay.classList.add("visible");
-      this.formAlias.value = "";
-      this.formAlias.focus();
-      this.input.enabled = false;
+        this.formOverlay.classList.add("visible");
+        this.formAlias.value = "";
+        if (this.formError) this.formError.textContent = "";
+        this.formAlias.focus();
+        this.input.enabled = false;
     }
   }
 
@@ -579,16 +711,30 @@ class Game {
     }
   }
 
-  _submitProfile() {
-    const alias = this.formAlias.value.trim();
-    if (!alias) return;
-    const locale = this.formLocale.value;
-    this.userManager.createProfile(alias, locale);
-    this._hideCreateForm();
-    this.menuIndex = this.userManager.getProfiles().length - 1;
-    this._uiLocale = locale;
-    this.renderer.setLocale(locale);
-  }
+    _submitProfile() {
+      const alias = this.formAlias.value.trim();
+      if (!alias) return;
+
+      // Check for duplicate name (case-insensitive)
+      const existing = this.userManager.getProfiles();
+      const duplicate = existing.some(p => p.alias.toLowerCase() === alias.toLowerCase());
+        if (duplicate) {
+          if (this.formError) {
+            const strings = getUIStrings(this._uiLocale);
+            this.formError.textContent = (strings.duplicateAlias || '"{alias}" already exists. Choose a different name.').replace("{alias}", alias);
+            this.formAlias.focus();
+            this.formAlias.select();
+          }
+          return;
+        }
+
+      const locale = this.formLocale.value;
+      this.userManager.createProfile(alias, locale);
+      this._hideCreateForm();
+      this.menuIndex = this.userManager.getProfiles().length - 1;
+      this._uiLocale = locale;
+      this.renderer.setLocale(locale);
+    }
 }
 
 // ── Boot ────────────────────────────────────────────────────

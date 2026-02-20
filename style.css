@@ -134,3 +134,14 @@ body {
   border-color: #ff4466;
   color: #ff4466;
 }
+
+.form-error {
+  font-size: 13px;
+  color: #ff4466;
+  text-align: center;
+  margin-top: -12px;
+  margin-bottom: 12px;
+  min-height: 18px;
+  text-shadow: 0 0 8px rgba(255, 68, 102, 0.5);
+  letter-spacing: 0.5px;
+}

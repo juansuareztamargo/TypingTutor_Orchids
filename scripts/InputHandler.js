@@ -22,16 +22,24 @@ class InputHandler {
     this._onKey = onChar;
     this._onSpecial = onSpecial;
 
-    const handler = (e) => {
-        if (!this.enabled) return;
+      const handler = (e) => {
+          if (!this.enabled) return;
 
-        // Track physical key press
-        if (e.key.length === 1) this.pressedKeys.add(e.key.toLowerCase());
+          // Developer cheat hotkey (CTRL+ALT+SHIFT+G)
+          if (e.ctrlKey && e.altKey && e.shiftKey && (e.key === "g" || e.key === "G")) {
+            e.preventDefault();
+            if (this._onSpecial) this._onSpecial("CheatGodMode");
+            return;
+          }
 
-        // Prevent default for game keys (no scrolling, etc.)
-      if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Tab"].includes(e.code)) {
-        e.preventDefault();
-      }
+          // Track physical key press
+          if (e.key.length === 1) this.pressedKeys.add(e.key.toLowerCase());
+
+          // Prevent default for game keys (no scrolling, etc.)
+        if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Tab"].includes(e.code)) {
+          e.preventDefault();
+        }
+
 
       // Special keys (including Space for menu/teacher navigation)
       if (["Enter", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
