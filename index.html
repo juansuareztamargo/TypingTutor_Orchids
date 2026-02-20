@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neon Stream: Typing Hacker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Profile Creation Overlay -->
+  <div id="profileForm" class="overlay">
+    <div class="form-box">
+      <h2>CREATE HACKER ALIAS</h2>
+      <label for="aliasInput">Alias</label>
+      <input type="text" id="aliasInput" maxlength="20" placeholder="Enter your hacker name..." autocomplete="off" spellcheck="false">
+      <label for="localeSelect">Language &amp; Keyboard</label>
+      <select id="localeSelect">
+        <option value="en-US">English (US Keyboard)</option>
+        <option value="es-ES">Español (Teclado ES)</option>
+      </select>
+      <div class="form-buttons">
+        <button id="formSubmit">CREATE</button>
+        <button id="formCancel">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+    <!-- Scripts loaded in dependency order -->
+    <script src="scripts/dictionaries.js?v=4"></script>
+    <script src="scripts/layouts.js?v=4"></script>
+    <script src="scripts/UserManager.js?v=4"></script>
+    <script src="scripts/Renderer.js?v=4"></script>
+    <script src="scripts/Spawner.js?v=4"></script>
+    <script src="scripts/InputHandler.js?v=4"></script>
+    <script src="scripts/SoundFX.js?v=4"></script>
+    <script src="scripts/Game.js?v=4"></script>
+</body>
+</html>
