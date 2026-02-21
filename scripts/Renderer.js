@@ -271,11 +271,12 @@ class Renderer {
 
   // ── Falling Targets ──────────────────────────────────────
 
-  drawTargets(targets) {
+  drawTargets(targets, activeTargetId = null) {
     const ctx = this.ctx;
     for (const t of targets) {
       const color = this.TIER_COLORS[t.tier] || this.NEON.cyan;
       const fontSize = t.fontSize || 28;
+      const isActive = activeTargetId !== null && t.id === activeTargetId;
       ctx.font = `bold ${fontSize}px ${this.FONT_FAMILY}`;
 
       // Glow effect
@@ -284,14 +285,14 @@ class Renderer {
 
       // Draw each character
       for (let i = 0; i < t.text.length; i++) {
-          const ch = t.text[i];
+        const ch = t.text[i];
         const cx = t.x + i * fontSize * 0.65;
 
         if (i < t.typed) {
           // Already typed — dim
           ctx.fillStyle = "rgba(255,255,255,0.15)";
-        } else if (i === t.typed) {
-          // Next to type — bright white
+        } else if (i === t.typed && isActive) {
+          // Only active sequence gets bright next-char highlight
           ctx.fillStyle = "#FFFFFF";
           ctx.shadowBlur = 20;
         } else {
@@ -353,7 +354,7 @@ class Renderer {
 
   drawHUD(state) {
     const ctx = this.ctx;
-    const { level, levelName, health, score, wpm, accuracy } = state;
+    const { level, levelName, health, score, wpm, accuracy, levelProgress = 0 } = state;
 
     ctx.shadowBlur = 0;
     ctx.font = `bold 16px ${this.FONT_FAMILY}`;
@@ -377,36 +378,53 @@ class Renderer {
     ctx.fillText(`${this._strings.wpm}: ${wpm}  ${this._strings.acc}: ${accuracy}%`, this.W - 20, 50);
     ctx.textAlign = "left";
 
-    // Health bar (bottom)
-    this._drawHealthBar(health);
+    // Top-center bars: system integrity and level progress
+    this._drawTopBars(health, levelProgress);
   }
 
-  _drawHealthBar(health) {
+  _drawTopBars(health, levelProgress) {
     const ctx = this.ctx;
     const barW = 300;
-    const barH = 12;
+    const barH = 10;
     const x = (this.W - barW) / 2;
-    const y = this.H - 30;
+    const y1 = 18;
+    const y2 = y1 + 28;
 
-    // Background
+    // Integrity bar background
     ctx.fillStyle = "rgba(255,255,255,0.1)";
-    ctx.fillRect(x, y, barW, barH);
+    ctx.fillRect(x, y1, barW, barH);
 
-    // Fill
-    const pct = Math.max(0, Math.min(1, health / 100));
-    const color = pct > 0.5 ? this.NEON.lime :
-                  pct > 0.25 ? this.NEON.yellow : this.NEON.pink;
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
+    // Integrity fill
+    const hpPct = Math.max(0, Math.min(1, health / 100));
+    const hpColor = hpPct > 0.5 ? this.NEON.lime : hpPct > 0.25 ? this.NEON.yellow : this.NEON.pink;
+    ctx.fillStyle = hpColor;
+    ctx.shadowColor = hpColor;
     ctx.shadowBlur = 6;
-    ctx.fillRect(x, y, barW * pct, barH);
+    ctx.fillRect(x, y1, barW * hpPct, barH);
     ctx.shadowBlur = 0;
 
-    // Label
+    // Integrity label
     ctx.font = `bold 11px ${this.FONT_FAMILY}`;
     ctx.fillStyle = this.NEON.white;
     ctx.textAlign = "center";
-    ctx.fillText(`${this._strings.systemIntegrity}: ${Math.round(health)}%`, this.W / 2, y - 6);
+    ctx.fillText(`${this._strings.systemIntegrity}: ${Math.round(health)}%`, this.W / 2, y1 - 5);
+
+    // Level progress bar background
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
+    ctx.fillRect(x, y2, barW, barH);
+
+    // Level progress fill
+    const lvlPct = Math.max(0, Math.min(1, levelProgress));
+    ctx.fillStyle = this.NEON.cyan;
+    ctx.shadowColor = this.NEON.cyan;
+    ctx.shadowBlur = 6;
+    ctx.fillRect(x, y2, barW * lvlPct, barH);
+    ctx.shadowBlur = 0;
+
+    // Level progress label
+    ctx.fillStyle = this.NEON.white;
+    ctx.fillText(`${this._strings.level}: ${Math.round(lvlPct * 100)}%`, this.W / 2, y2 - 5);
+
     ctx.textAlign = "left";
   }
 
@@ -563,7 +581,7 @@ class Renderer {
 
   // ── Level Select Screen ──────────────────────────────────
 
-  drawLevelSelect(levels, currentLevel, selectedLevel) {
+  drawLevelSelect(levels, currentLevel, selectedLevel, hoveredLevel = -1) {
     this.drawRainBackground(0.016);
     const ctx = this.ctx;
 
@@ -594,22 +612,35 @@ class Renderer {
       const lvl = levels[i];
       const unlocked = lvl.id <= currentLevel;
       const selected = lvl.id === selectedLevel;
+      const hovered = lvl.id === hoveredLevel;
+      const active = selected || hovered;
 
       // Box
-      ctx.strokeStyle = selected ? this.NEON.cyan :
-                        unlocked ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.08)";
-      ctx.lineWidth = selected ? 2 : 1;
+      ctx.strokeStyle = active
+        ? (selected ? this.NEON.cyan : "rgba(255,255,255,0.6)")
+        : unlocked
+          ? "rgba(255,255,255,0.3)"
+          : "rgba(255,255,255,0.08)";
+      ctx.lineWidth = active ? 2 : 1;
       ctx.strokeRect(x + 5, y + 5, cellW - 10, cellH - 10);
 
-        if (selected) {
-          ctx.fillStyle = "rgba(0, 229, 255, 0.08)";
-          ctx.fillRect(x + 5, y + 5, cellW - 10, cellH - 10);
-          this.drawNeonHighlight(x + 5, y + 5, cellW - 10, cellH - 10, this.NEON.cyan);
-        }
+      if (active) {
+        ctx.fillStyle = selected ? "rgba(0, 229, 255, 0.08)" : "rgba(255,255,255,0.05)";
+        ctx.fillRect(x + 5, y + 5, cellW - 10, cellH - 10);
+        this.drawNeonHighlight(
+          x + 5,
+          y + 5,
+          cellW - 10,
+          cellH - 10,
+          selected ? this.NEON.cyan : "rgba(255,255,255,0.6)"
+        );
+      }
 
       // Level number
       ctx.font = `bold 22px ${this.FONT_FAMILY}`;
-      ctx.fillStyle = unlocked ? (selected ? this.NEON.cyan : this.NEON.white) : "rgba(255,255,255,0.15)";
+      ctx.fillStyle = unlocked
+        ? (selected ? this.NEON.cyan : (hovered ? this.NEON.white : this.NEON.white))
+        : "rgba(255,255,255,0.15)";
       ctx.fillText(lvl.id.toString(), x + cellW / 2, y + 35);
 
       // Level name (truncated)
@@ -618,18 +649,18 @@ class Renderer {
       const name = lvl.name.length > 16 ? lvl.name.substring(0, 15) + "…" : lvl.name;
       ctx.fillText(name, x + cellW / 2, y + 55);
 
-        // Lock icon
-        if (!unlocked) {
-          ctx.font = `18px ${this.FONT_FAMILY}`;
-          ctx.fillStyle = "rgba(255,255,255,0.1)";
-          ctx.fillText("🔒", x + cellW / 2, y + 35);
-        }
-
-        // Register clickable hit region for unlocked levels
-        if (unlocked) {
-          this.addHitRegion(x + 5, y + 5, cellW - 10, cellH - 10, "level_select", { level: lvl.id });
-        }
+      // Lock icon
+      if (!unlocked) {
+        ctx.font = `18px ${this.FONT_FAMILY}`;
+        ctx.fillStyle = "rgba(255,255,255,0.1)";
+        ctx.fillText("🔒", x + cellW / 2, y + 35);
       }
+
+      // Register clickable hit region for unlocked levels
+      if (unlocked) {
+        this.addHitRegion(x + 5, y + 5, cellW - 10, cellH - 10, "level_select", { level: lvl.id });
+      }
+    }
 
     // Instructions
     ctx.font = `14px ${this.FONT_FAMILY}`;

@@ -23,12 +23,13 @@ class Spawner {
       this._nextId = 0;
       this.spawnTimer = 0;
 
-      // Speed ramp — gentler curve, especially 12+
-      if (difficulty <= 10) {
-        this.baseSpeed = 22 + difficulty * 3;           // 25..52
-      } else {
-        this.baseSpeed = 52 + (difficulty - 10) * 2;    // 54..72 for L11-20
-      }
+    // Speed ramp — doubled to increase falling challenge
+    if (difficulty <= 10) {
+      this.baseSpeed = (22 + difficulty * 3) * 2;           // 50..104
+    } else {
+      this.baseSpeed = (52 + (difficulty - 10) * 2) * 2;    // 108..144 for L11-20
+    }
+
 
       // Spawn interval — more breathing room at higher levels
       if (difficulty <= 10) {

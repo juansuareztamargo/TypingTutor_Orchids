@@ -31,6 +31,7 @@ class Game {
 
     // Level select
     this.selectedLevel = 1;
+    this.levelHovered = -1;
 
     // Gameplay
     this.health = 100;
@@ -68,6 +69,17 @@ class Game {
             this.menuHoveredIndex = -1;
           }
         }
+
+        // Track hover for level select tiles
+        if (this.state === "levelSelect") {
+          if (hit && hit.action === "level_select") {
+            this.levelHovered = hit.data.level;
+            this.selectedLevel = hit.data.level;
+          } else {
+            this.levelHovered = -1;
+          }
+        }
+
         // Track hover for end/pause screens
         if (this.state === "paused" || this.state === "levelComplete" || this.state === "gameOver") {
           if (hit) {
@@ -146,7 +158,7 @@ class Game {
 
     const locale = profile.locale;
     const levels = DICTIONARIES[locale].levels;
-    this.renderer.drawLevelSelect(levels, profile.progress.currentLevel, this.selectedLevel);
+    this.renderer.drawLevelSelect(levels, profile.progress.currentLevel, this.selectedLevel, this.levelHovered);
   }
 
   // ── TEACHER ──────────────────────────────────────────────
@@ -248,8 +260,9 @@ class Game {
       return;
     }
 
-    // Draw targets
-    renderer.drawTargets(this.spawner.targets);
+    // Draw targets (only the active sequence is highlighted white)
+    const activeTarget = this.spawner.getActiveTarget();
+    renderer.drawTargets(this.spawner.targets, activeTarget ? activeTarget.id : null);
 
     // Draw particles
     renderer.updateAndDrawParticles(dt);
@@ -273,6 +286,10 @@ class Game {
     const wpm = elapsed > 0 ? Math.round((this.correctChars / 5) / elapsed) : 0;
     const accuracy = this.totalChars > 0 ? Math.round((this.correctChars / this.totalChars) * 100) : 100;
 
+    const levelProgress = this.spawner.totalToSpawn > 0
+      ? (this.spawner.spawned - this.spawner.targets.length) / this.spawner.totalToSpawn
+      : 0;
+
     renderer.drawHUD({
       level: this.selectedLevel,
       levelName: this.levelData.name,
@@ -280,6 +297,7 @@ class Game {
       score: this.score,
       wpm: wpm,
       accuracy: accuracy,
+      levelProgress: levelProgress,
     });
   }
 
@@ -344,18 +362,11 @@ class Game {
             this.spawner.removeTarget(target.id);
           }
     } else {
-      // Wrong key
+      // Wrong key (penalize accuracy/flow, but not system integrity)
       this.sfx.playKeyWrong();
       this.renderer.applyShake(3);
-      this.health -= 2;
-        if (this.health <= 0) {
-          this.health = 0;
-          this.sfx.playGameOver();
-          this.endScreenIndex = 0;
-          this.state = "gameOver";
-        }
-      }
     }
+  }
 
     _onSpecial(key) {
     switch (this.state) {
@@ -479,6 +490,11 @@ class Game {
   _handleLevelSelectKey(key) {
     const profile = this.userManager.getActive();
     let maxLevel = profile.progress.currentLevel;
+
+    // Keyboard navigation takes precedence over any stale mouse hover
+    if (key.startsWith("Arrow") || key === "Enter" || key === "Escape") {
+      this.levelHovered = -1;
+    }
 
     if (key === "CheatGodMode") {
       const changed = this.userManager.unlockAllLevelsForActive();
